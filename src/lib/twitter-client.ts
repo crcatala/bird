@@ -272,12 +272,9 @@ export class TwitterClient {
 			}
 
 			// Prefer direct tweetResult if present, otherwise search the conversation thread
-			let tweetResult =
+			const tweetResult =
 				data.data?.tweetResult?.result ??
-				this.findTweetInInstructions(
-					data.data?.threaded_conversation_with_injections_v2?.instructions,
-					tweetId,
-				);
+				this.findTweetInInstructions(data.data?.threaded_conversation_with_injections_v2?.instructions, tweetId);
 
 			if (!tweetResult) {
 				return {
