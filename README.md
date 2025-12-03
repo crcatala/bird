@@ -144,6 +144,13 @@ bird check
    - Requires Chrome to be logged into x.com
    - May prompt for keychain access on first run
 
+### Browser cookie sources (macOS)
+
+- **Chrome (default)**: reads `~/Library/Application Support/Google/Chrome/<Profile>/Cookies` (WAL/SHM copied too). Select with `--chrome-profile <name>`; defaults to `Default` or whatever you set in config.
+- **Firefox**: reads `~/Library/Application Support/Firefox/Profiles/<profile>/cookies.sqlite`. Select with `--firefox-profile <name>`; defaults to `*.default-release` if present. Use this when Chrome isn’t logged in.
+
+Precedence still holds: CLI flags > env vars > project config > global config. So a one-off `--firefox-profile default-release` overrides any config defaults.
+
 ### Posting via Sweetistics (API key)
 
 If you have a Sweetistics API key, `bird` can post through the Sweetistics SaaS instead of using local Twitter cookies:
