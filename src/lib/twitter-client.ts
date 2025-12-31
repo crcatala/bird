@@ -23,6 +23,7 @@ const FALLBACK_QUERY_IDS = {
   TweetDetail: '97JF30KziU00483E_8elBA',
   SearchTimeline: 'M1jEez78PEfVfbQLvlWMvQ',
   UserArticlesTweets: '8zBy9h4L90aDL02RsBcCFg',
+  Bookmarks: 'RV1g3b8n_SGOHwkqKYSCFw',
 } as const;
 
 type OperationName = keyof typeof FALLBACK_QUERY_IDS;
@@ -1794,5 +1795,119 @@ export class TwitterClient {
     });
 
     return { success: true, tweets: thread };
+  }
+
+  private buildBookmarksFeatures(): Record<string, boolean> {
+    return {
+      ...this.buildSearchFeatures(),
+      graphql_timeline_v2_bookmark_timeline: true,
+      blue_business_profile_image_shape_enabled: true,
+      responsive_web_text_conversations_enabled: false,
+      tweetypie_unmention_optimization_enabled: true,
+      vibe_api_enabled: true,
+      responsive_web_twitter_blue_verified_badge_is_enabled: true,
+      interactive_text_enabled: true,
+      longform_notetweets_richtext_consumption_enabled: true,
+      responsive_web_media_download_video_enabled: false,
+    };
+  }
+
+  private async getBookmarksQueryIds(): Promise<string[]> {
+    const primary = await this.getQueryId('Bookmarks');
+    return Array.from(new Set([primary, 'RV1g3b8n_SGOHwkqKYSCFw', 'tmd4ifV8RHltzn8ymGg1aw']));
+  }
+
+  /**
+   * Get the authenticated user's bookmarks
+   */
+  async getBookmarks(count = 20): Promise<SearchResult> {
+    const variables = {
+      count,
+      includePromotedContent: false,
+      withDownvotePerspective: false,
+      withReactionsMetadata: false,
+      withReactionsPerspective: false,
+    };
+
+    const features = this.buildBookmarksFeatures();
+
+    const params = new URLSearchParams({
+      variables: JSON.stringify(variables),
+      features: JSON.stringify(features),
+    });
+
+    const tryOnce = async () => {
+      let lastError: string | undefined;
+      let had404 = false;
+      const queryIds = await this.getBookmarksQueryIds();
+
+      for (const queryId of queryIds) {
+        const url = `${TWITTER_API_BASE}/${queryId}/Bookmarks?${params}`;
+
+        try {
+          const response = await this.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: this.getHeaders(),
+          });
+
+          if (response.status === 404) {
+            had404 = true;
+            lastError = `HTTP ${response.status}`;
+            continue;
+          }
+
+          if (!response.ok) {
+            const text = await response.text();
+            return { success: false as const, error: `HTTP ${response.status}: ${text.slice(0, 200)}`, had404 };
+          }
+
+          const data = (await response.json()) as {
+            data?: {
+              bookmark_timeline_v2?: {
+                timeline?: {
+                  instructions?: Array<{
+                    entries?: Array<{
+                      content?: {
+                        itemContent?: {
+                          tweet_results?: {
+                            result?: GraphqlTweetResult;
+                          };
+                        };
+                      };
+                    }>;
+                  }>;
+                };
+              };
+            };
+            errors?: Array<{ message: string }>;
+          };
+
+          if (data.errors && data.errors.length > 0) {
+            return { success: false as const, error: data.errors.map((e) => e.message).join(', '), had404 };
+          }
+
+          const instructions = data.data?.bookmark_timeline_v2?.timeline?.instructions;
+          const tweets = this.parseTweetsFromInstructions(instructions);
+
+          return { success: true as const, tweets, had404 };
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      return { success: false as const, error: lastError ?? 'Unknown error fetching bookmarks', had404 };
+    };
+
+    const firstAttempt = await tryOnce();
+    if (firstAttempt.success) return { success: true, tweets: firstAttempt.tweets };
+
+    if (firstAttempt.had404) {
+      await this.refreshQueryIds();
+      const secondAttempt = await tryOnce();
+      if (secondAttempt.success) return { success: true, tweets: secondAttempt.tweets };
+      return { success: false, error: secondAttempt.error };
+    }
+
+    return { success: false, error: firstAttempt.error };
   }
 }

@@ -138,6 +138,7 @@ const KNOWN_COMMANDS = new Set([
   'thread',
   'search',
   'mentions',
+  'bookmarks',
   'help',
   'whoami',
   'check',
@@ -310,6 +311,7 @@ program
       'TweetDetail',
       'SearchTimeline',
       'UserArticlesTweets',
+      'Bookmarks',
     ];
 
     if (cmdOpts.fresh) {
@@ -667,6 +669,39 @@ program
       printTweets(result.tweets, { json: cmdOpts.json, emptyMessage: 'No mentions found.' });
     } else {
       console.error(`${p('err')}Failed to fetch mentions: ${result.error}`);
+      process.exit(1);
+    }
+  });
+
+// Bookmarks command - get user's bookmarks
+program
+  .command('bookmarks')
+  .description('Get your bookmarked tweets')
+  .option('-n, --count <number>', 'Number of bookmarks to fetch', '20')
+  .option('--json', 'Output as JSON')
+  .action(async (cmdOpts: { count?: string; json?: boolean }) => {
+    const opts = program.opts();
+    const timeoutMs = resolveTimeoutFromOptions(opts);
+    const count = Number.parseInt(cmdOpts.count || '20', 10);
+
+    const { cookies, warnings } = await resolveCredentialsFromOptions(opts);
+
+    for (const warning of warnings) {
+      console.error(`${p('warn')}${warning}`);
+    }
+
+    if (!cookies.authToken || !cookies.ct0) {
+      console.error(`${p('err')}Missing required credentials`);
+      process.exit(1);
+    }
+
+    const client = new TwitterClient({ cookies, timeoutMs });
+    const result = await client.getBookmarks(count);
+
+    if (result.success && result.tweets) {
+      printTweets(result.tweets, { json: cmdOpts.json, emptyMessage: 'No bookmarks found.' });
+    } else {
+      console.error(`${p('err')}Failed to fetch bookmarks: ${result.error}`);
       process.exit(1);
     }
   });
