@@ -7,8 +7,12 @@
 - Subcommand help now lists global options (credentials, output controls, timeouts, etc.).
 - Help output now documents config files and env vars.
 
+### Fixed
+- `followers` now falls back to the legacy API when GraphQL returns 404.
+
 ### Tests
 - Add regression test for global options in subcommand help.
+- Add opt-in live CLI test suite (real GraphQL calls; skipped by default).
 
 ## 0.5.0 — 2026-01-01
 
